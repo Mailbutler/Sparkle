@@ -75,6 +75,7 @@ static const NSTimeInterval SUScheduledUpdateIdleEventLeewayInterval = DEBUG ? 3
     BOOL _loggedGentleUpdateReminderWarning;
     BOOL _regularApplicationUpdate;
     BOOL _updateReceivedUserAttention;
+    BOOL _isLaunchDaemonOrAgent;
 }
 
 @synthesize activeUpdateAlert = _activeUpdateAlert;
@@ -89,6 +90,7 @@ static const NSTimeInterval SUScheduledUpdateIdleEventLeewayInterval = DEBUG ? 3
         _oldHostName = _host.name;
         _oldHostBundleURL = hostBundle.bundleURL;
         _delegate = delegate;
+        _isLaunchDaemonOrAgent = [_host boolForInfoDictionaryKey:SUIsLaunchDaemonOrAgentKey];
         
         kern_return_t timebaseInfoResult = mach_timebase_info(&_timebaseInfo);
         if (timebaseInfoResult != KERN_SUCCESS) {
@@ -855,7 +857,7 @@ static const NSTimeInterval SUScheduledUpdateIdleEventLeewayInterval = DEBUG ? 3
     
     // Only show installed prompt when the app is not relaunched
     // When the app is relaunched, there is enough of a UI from relaunching the app.
-    if (!relaunched) {
+    if (!relaunched && !_isLaunchDaemonOrAgent) {
 #if SPARKLE_COPY_LOCALIZATIONS
         NSBundle *sparkleBundle = SUSparkleBundle();
 #endif

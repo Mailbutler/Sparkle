@@ -47,6 +47,7 @@ static const NSTimeInterval SUTerminationTimeDelay = 0.3;
     __weak id<InstallerProgressDelegate> _delegate;
     
     BOOL _connected;
+    BOOL _isLaunchDaemonOrAgent;
     BOOL _repliedToRegistration;
     BOOL _shouldRelaunchHostBundle;
     BOOL _systemDomain;
@@ -85,8 +86,8 @@ static const NSTimeInterval SUTerminationTimeDelay = 0.3;
         
         SUHost *host = [[SUHost alloc] initWithBundle:hostBundle];
         _shouldRelaunchHostBundle = [host boolForInfoDictionaryKey:SURelaunchHostBundleKey];
+        _isLaunchDaemonOrAgent = [host boolForInfoDictionaryKey:SUIsLaunchDaemonOrAgentKey];
         _oldHostBundlePath = host.bundlePath;
-        
         _oldHost = host;
         
         // Note that we are connecting to the installer rather than the installer connecting to us
@@ -338,10 +339,19 @@ static const NSTimeInterval SUTerminationTimeDelay = 0.3;
             if (relaunchBundle == nil) {
                 [self cleanupAndExitWithStatus:EXIT_FAILURE error:[NSError errorWithDomain:SUSparkleErrorDomain code:SUAgentInvalidationError userInfo:@{ NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Error: Encountered invalid path to relaunch: %@", pathToRelaunch] }]];
             }
-            
-            // Note: we can launch application bundles or open plug-in bundles
-            if (![[NSWorkspace sharedWorkspace] openURL:[NSURL fileURLWithPath:pathToRelaunch isDirectory:YES]]) {
-                SULog(SULogLevelError, @"Error: Failed to relaunch bundle at %@", pathToRelaunch);
+
+            if (self->_isLaunchDaemonOrAgent) {
+                // Assuming this is a launch agent/daemon with KeepAlive == true, relaunch by simply
+                // terminating it, instead of bypassing launchd by regularly launching it.
+                NSArray *runningApps = [self runningApplicationsWithBundle:relaunchBundle];
+                for (NSRunningApplication *runningApplication in runningApps) {
+                    [runningApplication terminate];
+                }
+            } else {
+                // Note: we can launch application bundles or open plug-in bundles
+                if (![[NSWorkspace sharedWorkspace] openURL:[NSURL fileURLWithPath:pathToRelaunch isDirectory:YES]]) {
+                    SULog(SULogLevelError, @"Error: Failed to relaunch bundle at %@", pathToRelaunch);
+                }
             }
             
             // Delay termination for a little bit to better increase the chance the updated application when relaunched will be the frontmost application

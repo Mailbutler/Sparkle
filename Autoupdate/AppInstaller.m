@@ -73,6 +73,7 @@ static const NSTimeInterval SUDisplayProgressTimeDelay = 0.7;
     
     BOOL _shouldRelaunch;
     BOOL _shouldShowUI;
+    BOOL _isLaunchDaemonOrAgent;
     
     BOOL _receivedUpdaterPong;
     
@@ -436,6 +437,7 @@ static const NSTimeInterval SUDisplayProgressTimeDelay = 0.7;
             self->_signatures = installationData.signatures;
             self->_updateDirectoryPath = cacheInstallationPath;
             self->_host = [[SUHost alloc] initWithBundle:hostBundle];
+            self->_isLaunchDaemonOrAgent = [self->_host boolForInfoDictionaryKey:SUIsLaunchDaemonOrAgentKey];
             
             [self extractAndInstallUpdate];
         });
@@ -470,7 +472,9 @@ static const NSTimeInterval SUDisplayProgressTimeDelay = 0.7;
                         dispatch_async(dispatch_get_main_queue(), ^{
                             // Don't check if the target is already terminated, leave that to the progress agent
                             // We could be slightly off if there were multiple instances running
-                            [self->_agentConnection.agent sendTerminationSignal];
+                            if (!self->_isLaunchDaemonOrAgent) {
+                                [self->_agentConnection.agent sendTerminationSignal];
+                            }
                         });
                     }
                 });
@@ -548,7 +552,9 @@ static const NSTimeInterval SUDisplayProgressTimeDelay = 0.7;
             
             // Don't check if the target is already terminated, leave that to the progress agent
             // We could be slightly off if there were multiple instances running
-            [self->_agentConnection.agent sendTerminationSignal];
+            if (!self->_isLaunchDaemonOrAgent) {
+                [self->_agentConnection.agent sendTerminationSignal];
+            }
         });
     } else {
         _installer = nil;
@@ -561,7 +567,7 @@ static const NSTimeInterval SUDisplayProgressTimeDelay = 0.7;
 
 - (void)finishInstallationAfterHostTermination SPU_OBJC_DIRECT
 {
-    [_terminationListener startListeningWithCompletion:^(BOOL success) {
+    void (^completion)(BOOL) = ^void(BOOL success) {
         if (!success) {
             [self cleanupAndExitWithStatus:EXIT_FAILURE error:[NSError errorWithDomain:SUSparkleErrorDomain code:SPUInstallerError userInfo:@{ NSLocalizedDescriptionKey: @"Failed to listen for application termination" }]];
             return;
@@ -619,8 +625,7 @@ static const NSTimeInterval SUDisplayProgressTimeDelay = 0.7;
                 shouldShowUIProgress = NO;
                 
                 [self->_communicator handleMessageWithIdentifier:SPUInstallationFinishedStage3 data:[NSData data]];
-                
-                if (self->_shouldRelaunch) {
+                if (self->_shouldRelaunch || self->_isLaunchDaemonOrAgent) {
                     // This will also signal to the agent that it will terminate soon
                     [self->_agentConnection.agent relaunchApplication];
                 }
@@ -630,7 +635,13 @@ static const NSTimeInterval SUDisplayProgressTimeDelay = 0.7;
                 [self cleanupAndExitWithStatus:EXIT_SUCCESS error:nil];
             });
         });
-    }];
+    };
+
+    if (self->_isLaunchDaemonOrAgent) {
+        completion(YES);
+    } else {
+        [_terminationListener startListeningWithCompletion:completion];
+    }
 }
 
 - (void)cleanupAndExitWithStatus:(int)status error:(NSError * _Nullable)error __attribute__((noreturn))
