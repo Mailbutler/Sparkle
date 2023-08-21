@@ -32,6 +32,7 @@ NSString *const SUAppcastAttributeValueMacOS = @"macos";
 
 NSString *const SUTechnicalErrorInformationKey = @"SUTechnicalErrorInformation";
 
+NSString *const SUIsLaunchDaemonOrAgentKey = @"SUIsLaunchDaemonOrAgent";
 NSString *const SUFeedURLKey = @"SUFeedURL";
 NSString *const SUHasLaunchedBeforeKey = @"SUHasLaunchedBefore";
 NSString *const SURelaunchHostBundleKey = @"SURelaunchHostBundle";
