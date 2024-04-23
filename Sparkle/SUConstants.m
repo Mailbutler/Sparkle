@@ -19,6 +19,7 @@ NSString *const SUUpdateAutomaticCheckSettingChangedNotification = @"SUUpdateAut
 NSString *const SUUpdateSettingsNeedsSynchronizationNotification = @"SUUpdateSettingsNeedsSynchronization";
 NSString *const SUUpdateBundlePathUserInfoKey = @"SUBundlePath";
 
+NSString *const SUIsLaunchDaemonOrAgentKey = @"SUIsLaunchDaemonOrAgent";
 NSString *const SUFeedURLKey = @"SUFeedURL";
 NSString *const SUHasLaunchedBeforeKey = @"SUHasLaunchedBefore";
 NSString *const SURelaunchHostBundleKey = @"SURelaunchHostBundle";
