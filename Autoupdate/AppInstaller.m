@@ -72,7 +72,8 @@ static const NSTimeInterval SUDisplayProgressTimeDelay = 0.7;
     
     BOOL _shouldRelaunch;
     BOOL _shouldShowUI;
-    
+    BOOL _isLaunchDaemonOrAgent;
+
     BOOL _receivedUpdaterPong;
     
     BOOL _willCompleteInstallation;
@@ -311,7 +312,14 @@ static const NSTimeInterval SUDisplayProgressTimeDelay = 0.7;
                         self->_targetTerminated = YES;
                         
                         if (self->_performedStage1Installation) {
-                            [self finishInstallationAfterHostTermination];
+                            if (self->_isLaunchDaemonOrAgent) {
+                                // When updating a launch daemon/agent, Sparkle must _not_ try to update automatically when the process
+                                // has terminated because launchd might restart it immediately and therefore interfere with the Sparkle update!
+                                [self->_installer performCleanup];
+                                [self cleanupAndExitWithStatus:EXIT_FAILURE error:[NSError errorWithDomain:SUSparkleErrorDomain code:SPUInstallerError userInfo:@{ NSLocalizedDescriptionKey: @"Aborting installation due to launch daemon/agent terminating" }]];
+                            } else {
+                                [self finishInstallationAfterHostTermination];
+                            }
                         }
                     });
                 }];
@@ -461,6 +469,7 @@ static const NSTimeInterval SUDisplayProgressTimeDelay = 0.7;
             self->_signatures = installationData.signatures;
             self->_updateDirectoryPath = cacheInstallationPath;
             self->_host = [[SUHost alloc] initWithBundle:hostBundle];
+            self->_isLaunchDaemonOrAgent = [self->_host boolForInfoDictionaryKey:SUIsLaunchDaemonOrAgentKey];
             self->_verifierInformation = [[SPUVerifierInformation alloc] initWithExpectedVersion:installationData.expectedVersion expectedContentLength:installationData.expectedContentLength];
             
             [self extractAndInstallUpdate];
@@ -494,9 +503,16 @@ static const NSTimeInterval SUDisplayProgressTimeDelay = 0.7;
                     } else if (!self->_performedStage3Installation) {
                         // If we already performed the 2nd stage, re-purpose this request to re-try sending another termination signal
                         dispatch_async(dispatch_get_main_queue(), ^{
-                            // Don't check if the target is already terminated, leave that to the progress agent
-                            // We could be slightly off if there were multiple instances running
-                            [self->_agentConnection.agent sendTerminationSignal];
+                            if (self->_isLaunchDaemonOrAgent) {
+                                // When updating a launch daemon/agent we have to fake the termination here and
+                                // directly call finishInstallationAfterHostTermination because we must update while the app is running :(.
+                                self->_targetTerminated = YES;
+                                [self finishInstallationAfterHostTermination];
+                            } else {
+                                // Don't check if the target is already terminated, leave that to the progress agent
+                                // We could be slightly off if there were multiple instances running
+                                [self->_agentConnection.agent sendTerminationSignal];
+                            }
                         });
                     }
                 });
@@ -573,10 +589,17 @@ static const NSTimeInterval SUDisplayProgressTimeDelay = 0.7;
             
             NSData *sendData = [NSData dataWithBytes:&targetTerminated length:sizeof(targetTerminated)];
             [self->_communicator handleMessageWithIdentifier:SPUInstallationFinishedStage2 data:sendData];
-            
-            // Don't check if the target is already terminated, leave that to the progress agent
-            // We could be slightly off if there were multiple instances running
-            [self->_agentConnection.agent sendTerminationSignal];
+
+            if (self->_isLaunchDaemonOrAgent) {
+                // When updating a launch daemon/agent we have to fake the termination here and
+                // directly call finishInstallationAfterHostTermination because we must update while the app is running :(.
+                self->_targetTerminated = YES;
+                [self finishInstallationAfterHostTermination];
+            } else {
+                // Don't check if the target is already terminated, leave that to the progress agent
+                // We could be slightly off if there were multiple instances running
+                [self->_agentConnection.agent sendTerminationSignal];
+            }
         });
     } else {
         _installer = nil;

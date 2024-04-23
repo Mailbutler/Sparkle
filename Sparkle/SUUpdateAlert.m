@@ -406,6 +406,10 @@ static NSString *const SUUpdateAlertTouchBarIdentifier = @"" SPARKLE_BUNDLE_IDEN
         _laterButton.hidden = YES;
     }
 
+    // Mailbutler only: Hide the skip + auto-update buttons
+    _skipButton.hidden = YES;
+    _automaticallyInstallUpdatesButton.hidden = YES;
+
     [window center];
 }
 
