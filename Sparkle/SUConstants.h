@@ -32,6 +32,7 @@ extern NSString *const SUUpdateBundlePathUserInfoKey;
 //	PList keys::
 // -----------------------------------------------------------------------------
 
+extern NSString *const SUIsLaunchDaemonOrAgentKey;
 extern NSString *const SUFeedURLKey;
 extern NSString *const SUHasLaunchedBeforeKey;
 extern NSString *const SURelaunchHostBundleKey;

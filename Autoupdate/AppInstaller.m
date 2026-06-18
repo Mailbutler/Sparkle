@@ -87,7 +87,8 @@ static const NSTimeInterval SUDisplayProgressTimeDelay = 0.7;
     
     BOOL _shouldRelaunch;
     BOOL _shouldShowUI;
-    
+    BOOL _isLaunchDaemonOrAgent;
+
     BOOL _receivedUpdaterPong;
     
     BOOL _willCompleteInstallation;
@@ -401,15 +402,20 @@ static const NSTimeInterval SUDisplayProgressTimeDelay = 0.7;
             receivedResponse = YES;
             
             if (!targetTerminated) {
-                [self->_agentConnection.agent listenForTerminationWithCompletion:^{
+                void (^completion)(void) = ^void() {
                     dispatch_async(dispatch_get_main_queue(), ^{
                         self->_targetTerminated = YES;
-                        
+
                         if (self->_performedStage1Installation) {
                             [self finishInstallationAfterHostTermination];
                         }
                     });
-                }];
+                };
+                if (self->_isLaunchDaemonOrAgent) {
+                    completion();
+                } else {
+                    [self->_agentConnection.agent listenForTerminationWithCompletion:completion];
+                }
             } else {
                 self->_targetTerminated = YES;
             }
@@ -593,6 +599,7 @@ static const NSTimeInterval SUDisplayProgressTimeDelay = 0.7;
             self->_extractionDirectory = extractionDirectory;
             self->_decryptionPassword = installationData.decryptionPassword;
             self->_host = [[SUHost alloc] initWithBundle:hostBundle];
+            self->_isLaunchDaemonOrAgent = [self->_host boolForInfoDictionaryKey:SUIsLaunchDaemonOrAgentKey];
             self->_verifierInformation = [[SPUVerifierInformation alloc] initWithExpectedVersion:installationData.expectedVersion expectedContentLength:installationData.expectedContentLength];
             
             [self extractAndInstallUpdate];
@@ -634,7 +641,9 @@ static const NSTimeInterval SUDisplayProgressTimeDelay = 0.7;
                         dispatch_async(dispatch_get_main_queue(), ^{
                             // Don't check if the target is already terminated, leave that to the progress agent
                             // We could be slightly off if there were multiple instances running
-                            [self->_agentConnection.agent sendTerminationSignal];
+                            if (!self->_isLaunchDaemonOrAgent) {
+                                [self->_agentConnection.agent sendTerminationSignal];
+                            }
                         });
                     }
                 });
@@ -720,7 +729,9 @@ static const NSTimeInterval SUDisplayProgressTimeDelay = 0.7;
         
         // Don't check if the target is already terminated, leave that to the progress agent
         // We could be slightly off if there were multiple instances running
-        [self->_agentConnection.agent sendTerminationSignal];
+        if (!self->_isLaunchDaemonOrAgent) {
+            [self->_agentConnection.agent sendTerminationSignal];
+        }
     });
 }
 
@@ -780,7 +791,7 @@ static const NSTimeInterval SUDisplayProgressTimeDelay = 0.7;
             
             [self->_communicator handleMessageWithIdentifier:SPUInstallationFinishedStage3 data:[NSData data]];
             
-            if (self->_shouldRelaunch) {
+            if (self->_shouldRelaunch || self->_isLaunchDaemonOrAgent) {
                 // This will also signal to the agent that it will terminate soon
                 [self->_agentConnection.agent relaunchApplication];
             }
