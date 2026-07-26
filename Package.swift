@@ -1,4 +1,4 @@
-// swift-tools-version:5.3
+// swift-tools-version:5.7
 import PackageDescription
 
 // Version is technically not required here, SPM doesn't check
@@ -10,7 +10,7 @@ let url = "https://github.com/sparkle-project/Sparkle/releases/download/\(tag)/S
 
 let package = Package(
     name: "Sparkle",
-    platforms: [.macOS(.v12)], // leaving "12.0" as a breadcrumb for searching
+    platforms: [.macOS(.v13)],
     products: [
         .library(
             name: "Sparkle",
