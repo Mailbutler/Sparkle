@@ -1,13 +1,9 @@
 // swift-tools-version:5.7
 import PackageDescription
 
-// Version is technically not required here, SPM doesn't check
-let version = "2.9.3"
-// Tag is required to point towards the right asset. SPM requires the tag to follow semantic versioning to be able to resolve it.
-let tag = "2.9.3"
-let checksum = "3a5d7fd698acc39c122e75764ed3614b472b284cc483f32ae7006d86c513370c"
-let url = "https://github.com/sparkle-project/Sparkle/releases/download/\(tag)/Sparkle-for-Swift-Package-Manager.zip"
-
+// Sparkle.xcframework is built from this repository's own sources by the Distribution scheme.
+// Editing Autoupdate/, Sparkle/ or InstallerProgress/ changes nothing a consumer links until that
+// scheme is re-run and the resulting xcframework replaces the one committed here.
 let package = Package(
     name: "Sparkle",
     platforms: [.macOS(.v13)],
@@ -19,8 +15,7 @@ let package = Package(
     targets: [
         .binaryTarget(
             name: "Sparkle",
-            url: url,
-            checksum: checksum
+            path: "Sparkle.xcframework"
         )
     ]
 )
